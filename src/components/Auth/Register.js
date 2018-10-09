@@ -3,7 +3,7 @@ import { Grid, Form, Segment, Button, Header, Message, Icon} from 'semantic-ui-r
 import firebase from '../../firebase';
 
 import { Link } from 'react-router-dom'
-import { create } from 'domain';
+
 export default class Register extends Component {
   state = {
     username: '',
