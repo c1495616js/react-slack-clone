@@ -3,6 +3,7 @@ import { Grid, Form, Segment, Button, Header, Message, Icon} from 'semantic-ui-r
 import firebase from '../../firebase';
 
 import { Link } from 'react-router-dom'
+import md5 from 'md5';
 
 export default class Register extends Component {
   state = {
@@ -10,7 +11,9 @@ export default class Register extends Component {
     email: '',
     password: '',
     passwordConfirmation: '',
-    errors: []
+    errors: [],
+    loading: false,
+    userRef: firebase.database().ref('users')
   };
 
   isFormValid = () => {
@@ -43,28 +46,61 @@ isPasswordValid = ({password, passwordConfirmation}) => {
   }
   return true;
 }
-  displayErrors = errors => errors.map((error, i)=> <p>{error.message}</p>);
+  displayErrors = errors => errors.map((error, i)=> <p key={i}>{error.message}</p>);
 
   handleChange = event => {    
     this.setState({[event.target.name]: event.target.value})
   }
 
   handleSubmit = event => {
-    if(!this.isFormValid())return
     event.preventDefault();
+    if(!this.isFormValid()) return
+    this.setState({ errors: [], loading: true });
     firebase
       .auth()
       .createUserWithEmailAndPassword(this.state.email, this.state.password)
       .then(createdUser => {
         console.log(createdUser)
+        createdUser.user
+        .updateProfile({
+          displayName: this.state.username,
+          photoURL: `http://gravatar.com/avatar/${md5(createdUser.user.email)}?d=identicon`
+        })
+        .then(() => {
+          this.saveUser(createdUser).then(() => {
+            console.log('user saved');
+            this.setState({ loading: false });
+          })
+        })
+        .catch(err => {
+          console.error(err)
+          this.setState({errors: this.state.errors.concat(err), loading: false})
+        })
       })
       .catch(err => {
         console.error(err)
+        this.setState({
+          errors: this.state.errors.concat(err),
+          loading: false
+        });
       })
   }
 
+  saveUser = createdUser => {
+   return this.state.userRef.child(createdUser.user.uid).set({
+      name: createdUser.user.displayName,
+      avatar: createdUser.user.photoURL
+    })
+  }
+
+  handleInputError = (errors, inputName) => {
+    return errors.some(error => error.message.toLowerCase().includes(inputName))
+      ? "error"
+      : "";
+  };
+
   render() {
-    const { username, email, password, passwordConfirmation, errors } = this.state;
+    const { username, email, password, passwordConfirmation, errors, loading } = this.state;
 
     return (
       <Grid textAlign="center" verticalAlign="middle" className="app">
@@ -79,15 +115,19 @@ isPasswordValid = ({password, passwordConfirmation}) => {
               placeholder="Username" onChange={this.handleChange} value={username} type="text"/>
 
               <Form.Input fluid name="email" icon="mail" iconPosition="left"
-              placeholder="Email Address" onChange={this.handleChange} value={email} type="email"/>
+                className={this.handleInputError(errors, "email")}
+                placeholder="Email Address" onChange={this.handleChange} value={email}  type="email"/>
 
               <Form.Input fluid name="password" icon="lock" iconPosition="left"
+              className={this.handleInputError(errors, "password")}
               placeholder="Password" onChange={this.handleChange} value={password} type="password"/>
 
               <Form.Input fluid name="passwordConfirmation" icon="repeat" iconPosition="left"
+              className={this.handleInputError(errors, "password")}
               placeholder="Password Confirmation" onChange={this.handleChange} value={passwordConfirmation} type="password"/>
 
-              <Button color="orange" fluid size="large">Submit</Button>
+              <Button color="orange" fluid size="large" disabled={loading}
+              className={loading ? "loading" : ""}>Submit</Button>
             </Segment>
           </Form>
           {errors.length > 0 && (
